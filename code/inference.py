@@ -24,6 +24,8 @@ topil=transforms.ToPILImage()
 
 if __name__ == '__main__':
     
+
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--name',type=str, default='test',help='name of your experiment, as seen in the run folder')
     parser.add_argument('--text',type=str, default='yourtext')
@@ -46,7 +48,7 @@ if __name__ == '__main__':
     args=config.get_arguments()
     args=load_args(os.path.join(dir,'arguments.json'),args)
     config.args=args
-
+    torch.random.seed()
 
 
     vgg = models.vgg19(pretrained=False).features.cuda()
@@ -84,6 +86,7 @@ if __name__ == '__main__':
         config.args.batch_size=len(args_inference.text)+4
         loader,loader_test=get_loader()
         it=iter(loader)
+        next(it)
         real=next(it).cuda()
         real_same=real[:1].repeat(config.args.batch_size,1,1,1)
         scale = Variable((.7+torch.randn(config.args.batch_size)*.0 ).cuda(),
@@ -95,12 +98,25 @@ if __name__ == '__main__':
         out_vgg = [outputs[key] for key in layers] 
         w_real=E(out_vgg)
 
+        
+        print('different samplings')
+        os.makedirs(os.path.join(dir_exp,'noise_sampling'))
+        for i in range(8):
+            rec=G(w_real[i:i+1].repeat(4,1))
+            #grid=make_grid(rec*.5+.5,nrow=2,padding=5,pad_value=1)
+            for j,img in enumerate(rec):
+                save_image(img.unsqueeze(0)*.5+.5,os.path.join(dir_exp,'noise_sampling','noise_sampling_img%d_sample%d.png'%(i,j)))
+            save_image(real[i:i+1]*.5+.5,os.path.join(dir_exp,'noise_sampling','noise_sampling_GT%d.png'%(i)))
+
         real_same=augment(real_same,scale,theta)
         vgg(prep(real_same))
         out_vgg = [outputs[key] for key in layers] 
         w_same=E(out_vgg)
 
         w_same+=torch.randn(w_same.shape).cuda()*.2
+
+        
+        #w_real=z_to_w(Variable(torch.randn(12,args.nc_z)).cuda())
 
 
         width=31
@@ -176,7 +192,7 @@ if __name__ == '__main__':
         batch=next(it).cuda()
         corner_list=[]
         w_real_list=[]
-        torch.manual_seed(torch.rand(1))
+        
         for i in range(4):
             scale = Variable((torch.rand(1) * (args.max_scale - args.min_scale) + args.min_scale).cuda(),
                                 requires_grad=False)

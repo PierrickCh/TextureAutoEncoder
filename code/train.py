@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import torch.nn as nn
 import torchvision.models as models
 from torch.autograd import Variable
@@ -164,7 +166,7 @@ if __name__ == '__main__':
 
                 writer.add_scalar('style_loss', sum(style_losses).item(), n_it)
 
-                if args.lam_sp != 0: # Spectral loss 
+                if True: # Spectral loss 
                     lum=torch.randn(3,1).cuda()
                     lum= lum / lum.norm(2)
                     grey = rec.permute(0, 2, 3, 1).matmul(lum).permute(0, 3, 1, 2) # project to grey using a random direction in color space

@@ -28,7 +28,7 @@ def get_arguments():
     parser.add_argument('--beta1', type=float, default=.9)
     parser.add_argument('--local_stats_width', type=float, default=.2)
 
-    parser.add_argument('--n_epoch', type=int, default=1000)
+    parser.add_argument('--n_epoch', type=int, default=10000)
     parser.add_argument('--nc_w', type=int, default=32)
     parser.add_argument('--nc_z', type=int, default=256)
     parser.add_argument('--nc_quad', type=int, default=32)
