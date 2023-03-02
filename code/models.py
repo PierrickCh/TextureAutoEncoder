@@ -546,7 +546,6 @@ class style_generator(nn.Module):
                 offset=self.offset
             else:
                 offset = 2**self.n * math.pi * torch.rand(x.shape[0], 1, 1).to("cuda")
-                print(offset)
 
             for i, m in enumerate(self.body_modules):
                 if w_map is not None:
