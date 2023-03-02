@@ -32,10 +32,15 @@ if __name__ == '__main__':
     writer = SummaryWriter(args.dir)
     
     # for style loss:
-    vgg = models.vgg19(pretrained=False).features.cuda() 
-    pretrained_dict = torch.load('/scratchm/pchatill/projects/texture_comp/vgg_conv.pth')
-    for param, item in zip(vgg.parameters(), pretrained_dict.keys()): 
-        param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
+    vgg = models.vgg19(pretrained=False).features.cuda()
+    try:
+        pretrained_dict = torch.load('./vgg.pth')
+        for param, item in zip(vgg.parameters(), pretrained_dict.keys()):
+            param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
+    except:
+        pretrained_dict = torch.load('../vgg.pth')
+        for param, item in zip(vgg.parameters(), pretrained_dict.keys()):
+            param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
     vgg.requires_grad_(False)
     outputs = {}
     def save_output(name):
@@ -306,5 +311,5 @@ if __name__ == '__main__':
     torch.save(G.state_dict(), os.path.join(args.dir,'models','G'))
     torch.save(E.state_dict(), os.path.join(args.dir,'models','E'))
     torch.save(z_to_w.state_dict(), os.path.join(args.dir,'models','z_to_w'))
-    os.system('python inference.py --name %s' %(args.dirname))
+    os.system('python inference.py --name %s' %(args.name))
     writer.close()

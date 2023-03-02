@@ -52,9 +52,14 @@ if __name__ == '__main__':
 
 
     vgg = models.vgg19(pretrained=False).features.cuda()
-    pretrained_dict = torch.load('/scratchm/pchatill/projects/texture_comp/vgg_conv.pth')
-    for param, item in zip(vgg.parameters(), pretrained_dict.keys()): 
-        param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
+    try:
+        pretrained_dict = torch.load('./vgg.pth')
+        for param, item in zip(vgg.parameters(), pretrained_dict.keys()):
+            param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
+    except:
+        pretrained_dict = torch.load('../vgg.pth')
+        for param, item in zip(vgg.parameters(), pretrained_dict.keys()):
+            param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
     vgg.requires_grad_(False)
     outputs = {}
     def save_output(name):

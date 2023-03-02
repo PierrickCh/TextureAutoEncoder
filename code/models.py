@@ -12,8 +12,6 @@ import config
 from util import Normalize_gradients
 I = Normalize_gradients().apply
 
-model_dir = "./vgg.pth"
-
 
 
 class GramMatrix(nn.Module):

@@ -18,7 +18,7 @@ def get_arguments():
     global args
     parser = argparse.ArgumentParser()
     parser.add_argument('--dir_runs', help='directory with all experiments', default='./runs')
-    parser.add_argument('--dirname', help='experiment directory', default='test')
+    parser.add_argument('--name', help='experiment directory', default='test')
     parser.add_argument('--seed', type=int, default=42)
 
     parser.add_argument('--center_gram', type=str2bool,default=True)
@@ -52,7 +52,7 @@ def get_arguments():
     parser.add_argument('--min_theta', type=float, default=0)
     parser.add_argument('--max_theta', type=float, default=6.28)
 
-    parser.add_argument('--dataset_folder', type=str, default='../../../data/MacroTextures500/train/',help='path to all your data, train and val are done randomly')
+    parser.add_argument('--dataset_folder', type=str, default='../../data/MacroTextures500/images',help='path to all your data, train and val are done randomly')
     parser.add_argument('--texture_loss', type=str, default='gatys')
     parser.add_argument('--print_every', type=int, default=100)
     
@@ -72,7 +72,7 @@ def get_arguments():
     return args
 
 def create_dir():
-    dir=os.path.join(args.dir_runs,args.dirname)
+    dir=os.path.join(args.dir_runs,args.name)
     if not os.path.exists(dir):
         os.makedirs(dir)
         args.dir=dir

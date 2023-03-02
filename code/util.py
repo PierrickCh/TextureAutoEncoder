@@ -44,6 +44,8 @@ def prep(x):
 class Ds_folder(Dataset):
     def __init__(self, dataset_path, transform=None):
         self.l = []
+        print(os.getcwd())
+        print(dataset_path)
         for f in os.listdir(dataset_path):
             
             self.l.append(os.path.join(dataset_path, f))
