@@ -12,7 +12,7 @@ import config
 from util import Normalize_gradients
 I = Normalize_gradients().apply
 
-model_dir = "/scratchm/pchatill/projects/comparison/vgg_conv.pth"
+model_dir = "./vgg.pth"
 
 
 

@@ -1,5 +1,2 @@
 **/logs/
-**/models/
-**/runs/
-*.sh
-!*/runs/example/models/
+**/*.pth
