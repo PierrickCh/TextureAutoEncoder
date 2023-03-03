@@ -8,6 +8,7 @@
 
 ### Official pytorch implementation of the paper: "A geometrically aware auto-encoder for multi-texture synthesis"
 Our method allows texture expansion (2*2 bigger than training resolution here) as well as spatial interpolation and smooth temporal interpolation.
+
 ![](imgs/show_off.gif)
 
 
@@ -80,8 +81,11 @@ Additional parameters are:
 
 ### Results 
 Texture Palette: Four input textures of various sizes  and aspect ratio are displayed in the corners. In the center, an image shows a field obtained by performing spatial interpolation between the corner textures. On this field, the red dots are positions from which the images in the middle of each side are synthesized.
+
 ![Palette](imgs/nuancier.png)
+
 Walk in W space with fixed spatial noise ralization.
+
 ![Palette](imgs/w_walk.gif)
 
 
