@@ -84,7 +84,7 @@ Texture Palette: Four input textures of various sizes  and aspect ratio are disp
 
 ![Palette](imgs/nuancier.png)
 
-Walk in W space with fixed spatial noise ralization.
+This animation shows the synthesis result for a smoothly moving texture descriptor $w$ in latent space. The spatial noise ralization is fixed.
 
 ![Palette](imgs/w_walk.gif)
 
