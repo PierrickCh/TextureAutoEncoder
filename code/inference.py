@@ -37,9 +37,13 @@ if __name__ == '__main__':
 
 
     assert args_inference.text.isalnum(), '--text must be alphanumeric'
+
     dir=os.path.join('./runs',args_inference.name)
     if not os.path.exists(dir):
-        raise SystemExit('%s is not a directory with trained models'%dir)
+        dir_old=dir
+        dir=os.path.join('../runs',args_inference.name)
+        if not os.path.exists(dir):
+            raise SystemExit('%s nor %s are directories with trained models'%(dir_old,dir))
     
     dir_exp=os.path.join(dir,'inference')
     if not os.path.exists(dir_exp):

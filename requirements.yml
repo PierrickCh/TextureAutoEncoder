@@ -12,3 +12,4 @@ dependencies:
   - tqdm
   - numpy
   - matplotlib
+  - imageio
