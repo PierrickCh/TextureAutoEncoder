@@ -42,7 +42,7 @@ conda env create -f requirements.yml
 conda activate TextureAE
 ```
 
-Download and unzip the weights for the VGG19 network from [Gatys et. al.](https://arxiv.org/abs/1505.07376) by running, the following command:
+Download and unzip the weights for the VGG19 network from [Gatys et. al.](https://arxiv.org/abs/1505.07376) by running the following command:
 
 ```
 bash get_vgg_weights.sh
@@ -50,6 +50,16 @@ bash get_vgg_weights.sh
 
 Alternatively you can download them directly from [here](https://drive.google.com/file/d/1tdfMcwSogBfAkMcLVJd9z_frsEg8fxAB/view?usp=sharing) and unzip in the main directory.
 
+### Pretrained models
+
+
+Download and unzip the a pretrained model by running the following command:
+
+```
+bash get_pretrained_model.sh
+```
+
+Alternatively you can download them directly from [here](https://drive.google.com/file/d/1RcWQTtgPbHr4I0_OPMPXJ0XD8KYfToB3/view?usp=sharing) and unzip in the ./runs/ directory.
 
 
 ###  Train
@@ -58,7 +68,8 @@ Alternatively you can download them directly from [here](https://drive.google.co
 
 
 ```
-python code/train.py --name <name_of_the_experiment> --dataset_folder <path_to_dataset> #<path_to_dataset> should be an absolute path
+python code/train.py --name <name_of_the_experiment> \
+--dataset_folder <path_to_dataset> #<path_to_dataset> should be an absolute path
 ```
 
 
