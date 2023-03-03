@@ -1,6 +1,7 @@
 runs/
 **/events*
 **/*.pth
-*.sh
+
 !./get_vgg_weights.sh
 !./get_pretrained_model.sh
+*.sh
