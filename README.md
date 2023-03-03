@@ -74,7 +74,7 @@ python code/train.py --name <name_of_the_experiment> \
 
 
 
-Please refer to code/config.py for described additional arguments.
+Please refer to code/config.py for described additional arguments such as the latent space dimension --nc_w.
 All the models, arguments and tensorboard logs for an experiments are stored under the same folder ./runs/name_of_the_experiment/
 
 ### Inference
@@ -101,8 +101,7 @@ This animation shows the synthesis result for a smoothly moving texture descript
 
 
 ### Acknowledgments
-This work was co-financed by ONERA and Agence Innovation Défense (AID).
-
+This work was co-financed by ONERA and the [Defence Innovation Agency](https://www.defense.gouv.fr/aid)
 Although recoded the architecture of our generator comes from [StyleGAN](https://arxiv.org/abs/1812.04948), the AdaIN code was derived from (https://github.com/CellEight/Pytorch-Adaptive-Instance-Normalization), and the code for the implementation of Gatys et. al. 's texture loss was adapted from (https://storimaging.github.io/notebooksImageGeneration/).
 
 ### License
