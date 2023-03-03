@@ -109,7 +109,8 @@ if __name__ == '__main__':
 
         
         print('different samplings')
-        os.makedirs(os.path.join(dir_exp,'noise_sampling'))
+        if not os.path.exists(os.path.join(dir_exp,'noise_sampling')):
+            os.makedirs(os.path.join(dir_exp,'noise_sampling'))
         for i in range(8):
             rec=G(w_real[i:i+1].repeat(4,1))
             #grid=make_grid(rec*.5+.5,nrow=2,padding=5,pad_value=1)
@@ -148,7 +149,7 @@ if __name__ == '__main__':
                 a=transforms.ToTensor()(Image.open('./letters/%s.png'%s)).unsqueeze(0).cuda()
                 ca=conv(a)
                 mask=torch.minimum(torch.tensor(1.).cuda(),ca/ca.max()*1.)
-                save_image(mask,os.path.join(dir_exp,'mask.png'))
+                #save_image(mask,os.path.join(dir_exp,'mask.png'))
                 w_brush=w_curr[4+i].unsqueeze(0)
                 w_map[:,:,128*(i//4):128*((i//4)+1),128*(i%4):128*((i%4)+1)]=w_brush.unsqueeze(-1).unsqueeze(-1)*mask+w_map[:,:,128*(i//4):128*((i//4)+1),128*(i%4):128*((i%4)+1)]*(1-mask)
 

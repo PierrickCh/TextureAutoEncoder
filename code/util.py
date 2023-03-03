@@ -67,8 +67,6 @@ class Ds_folder(Dataset):
 def get_loader():
     #TODO change paths
     """prepares the dataloader to use during training"""
-    
-    torch.manual_seed(config.args.seed)
 
 
     transformations = transforms.Compose([#transforms.ColorJitter(brightness=.2, contrast=.2, saturation=.2, hue=.1),
