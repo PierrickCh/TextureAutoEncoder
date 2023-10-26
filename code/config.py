@@ -30,8 +30,8 @@ def get_arguments():
 
     parser.add_argument('--n_epoch', type=int, default=10000)
     parser.add_argument('--nc_w', type=int, default=32)
-    parser.add_argument('--nc_z', type=int, default=256)
-    parser.add_argument('--nc_quad', type=int, default=32)
+    parser.add_argument('--nc_z', type=int, default=512)
+    parser.add_argument('--nc_quad', type=int, default=128)
     parser.add_argument('--nc_max', type=int, default=128)
     parser.add_argument('--depth_T', type=int, default=5)
 
@@ -39,23 +39,25 @@ def get_arguments():
     parser.add_argument('--lam_sp', type=float, default=1.)
     parser.add_argument('--lam_hist', type=float, default=1.)
     parser.add_argument('--lam_pred', type=float, default=1000.)
-    parser.add_argument('--lam_w', type=float, default=100)
-
+    parser.add_argument('--lam_w', type=float, default=10)
     parser.add_argument('--lam_l1', type=float, default=0.)
-    
     parser.add_argument('--lam_reg', type=float, default=0)
-    
-    
+    parser.add_argument('--train_f0', type=str2bool, default=False)
 
-    parser.add_argument('--min_scale', type=float, default=.3)
-    parser.add_argument('--max_scale', type=float, default=1)
+    parser.add_argument('--min_scale', type=float, default=.25)
+    parser.add_argument('--max_scale', type=float, default=.75)
     parser.add_argument('--min_theta', type=float, default=0)
     parser.add_argument('--max_theta', type=float, default=6.28)
 
-    parser.add_argument('--dataset_folder', type=str, default='../../data/MacroTextures500/images',help='path to all your data, train and val are done randomly')
+    parser.add_argument('--color_augmentation', type=str2bool, default=False)
+
+
+    parser.add_argument('--dataset_folder', type=str, default='../../../data/MacroTextures500/train',help='path to all your data, train and val are done randomly')
     parser.add_argument('--texture_loss', type=str, default='gatys')
     parser.add_argument('--print_every', type=int, default=100)
     
+    
+    parser.add_argument('--it', type=int, default=0,help='last iteration')
     parser.add_argument('--n', type=int, default=7,help='depth of the generator')
     parser.add_argument('--n_freq', type=int, default=32)
     parser.add_argument('--sine_maps', type=str2bool,default=True)
@@ -66,17 +68,20 @@ def get_arguments():
     parser.add_argument('--load', type=str, default=None)
 
     args, unknown = parser.parse_known_args()
-    if args.load is not None:
-        args=load_args(args.load,args)
-    
+    dir=os.path.join(args.dir_runs,args.name)
+    if args.load is not None and os.path.exists(os.path.join(dir,'arguments.json')):
+        seed=args.seed
+        args=load_args(os.path.join(dir,'arguments.json'),args)
+        args.load=True
+        args.seed=seed
     return args
 
-def create_dir():
+def create_dir(args):
     dir=os.path.join(args.dir_runs,args.name)
     if not os.path.exists(dir):
         os.makedirs(dir)
         args.dir=dir
-    else:
+    elif args.load is None:
         dir_search=dir
         i=0
         while os.path.exists(dir_search):
@@ -84,6 +89,8 @@ def create_dir():
             dir_search=dir+'_%d'%i
         os.makedirs(dir_search)
         args.dir=dir_search
+    else:
+        return
     os.makedirs(os.path.join(args.dir,'models'))
     os.makedirs(os.path.join(args.dir,'inference'))
     return

@@ -223,10 +223,12 @@ class PeriodicityUnit(nn.Module):
 
         self.sine_maps_conv = nn.Conv2d(n_freq, out_channels, 1)
         self.to_style = nn.Linear(nc_w, n_freq)
+         # learnable modulation of the noise
 
         
 
-    def forward(self, x, w_mod,w_map=None, fx=None, fy=None, phase=None):
+    def forward(self, x, w_mod,w_map=None, fx=None, fy=None, phase=None,f0=8.):
+    
         B,C,H,W = x.size()
 
         w_grid = torch.arange(start=0, end=W).repeat(H, 1).view(1, H, W) - (W - 1) / 2
@@ -239,10 +241,12 @@ class PeriodicityUnit(nn.Module):
 
         if config.args.freq_amp == "2scales": #default: a frequency is used in the 2 levels where it appears as a not too high nor too low
             freq_amp = torch.maximum(torch.tensor(0.).cuda(), 1 - torch.abs(1 - torch.log2(
-                8 * r)))  
+                f0 * r)))  
         elif config.args.freq_amp == "trans_scales":
             freq_amp = torch.minimum(torch.tensor(1.).cuda(), torch.maximum(torch.tensor(0.).cuda(), -torch.log2(
-                8 * r)))  
+                f0 * r)))  
+        elif config.args.freq_amp == 'ind':
+            freq_amp = ((f0*r)>=1) * ((f0*r)<2)*1.          
 
         if w_map is None:
             sines = freq_amp.unsqueeze(-1) * torch.sin(torch.matmul(2 * math.pi * freq, grid) + phase) # sine maps modulated accordingly to their magnitude
@@ -260,6 +264,8 @@ class PeriodicityUnit(nn.Module):
                 freq_amp = torch.maximum(torch.tensor(0.).cuda(), 1 - torch.abs(1 - torch.log2(8 * r))) 
             elif config.args.freq_amp == "trans_scales":
                 freq_amp = torch.minimum(torch.tensor(1.).cuda(), torch.maximum(torch.tensor(0.).cuda(), -torch.log2(8 * r)))  
+            elif config.args.freq_amp == 'ind':
+                freq_amp = ((f0*r)>=1) * ((f0*r)<2)*1.   
             sines = freq_amp.view(B,self.n_freq,-1)* torch.sin((2 * math.pi * freq.view(B,self.n_freq,2,-1)*grid.unsqueeze(0).unsqueeze(0)).sum(-2) + phase)
             modulation = self.to_style(w_map.permute((0, 2, 3, 1))).permute((0, 3, 1, 2))
             sines = sines.view(B, self.n_freq, H, W) * modulation
@@ -374,14 +380,14 @@ class StyleBlock(nn.Module):
         self.noise_modulation2 = Parameter(.01 * torch.randn(1, nc_out, 1, 1).cuda(), requires_grad=True) 
     
     
-    def forward(self, x, w, fx, fy, w_map=None, save_noise=False, phase=None):
+    def forward(self, x, w, fx, fy, w_map=None, save_noise=False, phase=None,f0=8.):
 
         x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
         x_conv = self.conv1(x)
 
 
         if self.periodic_content is not None: # retrieve periodic content and merge it to the current feature maps accordingly to sine_maps_merge mode
-            x_f_conv, l1_loss = self.periodic_content(x, w, w_map, fx, fy, phase=phase)  
+            x_f_conv, l1_loss = self.periodic_content(x, w, w_map, fx, fy, phase=phase,f0=f0)  
             x_f_conv = x_f_conv[..., 1:-1, 1:-1]
             self.l1_loss = l1_loss
             if config.args.sine_maps_merge == 'add': # addition
@@ -497,7 +503,7 @@ class style_generator(nn.Module):
         
         self.zoom=(1,1)
         self.n_freq = n_freq
-
+        self.f0 = Parameter(torch.tensor(0.08).cuda(), requires_grad=config.args.train_f0)
         nc_max = config.args.nc_max  #argument controlling the maximal depth of features maps in the network.
         self.input_tensor = Parameter(torch.randn(1, nc_max, 1, 1).cuda(), requires_grad=True) #not 4*4 like in StyleGAN, but a constant replicated along spacial axes at the start of the network
 
@@ -524,7 +530,7 @@ class style_generator(nn.Module):
             l.append(StyleBlock(min(nc_max, 2 ** (5 + self.n - i)), min(nc_max, 2 ** (5 + self.n - i - 1)), nc_w, n_freq=n_freq))
         self.body_modules = nn.ModuleList(l)
 
-        def body_forward(x, w, w_map=None):
+        def body_forward(x, w, w_map=None,f0=self.f0,zoom=(1,1)):
             if w_map is None:
                 s, t = self.pred(w) # infer scale and rotation
                 mod = 2 ** (-self.r * self.grad_boost) # get magnitude of each frequency
@@ -547,7 +553,8 @@ class style_generator(nn.Module):
 
             for i, m in enumerate(self.body_modules):
                 if w_map is not None:
-                    w_map_curr=F.interpolate(w_map, (2**(i+2)*self.zoom[0],2**(i+2)*self.zoom[1]), mode='bilinear', align_corners=True)
+                    #!!!!! w_map_curr=F.interpolate(w_map, (2**(i+2)*self.zoom[0],2**(i+2)*self.zoom[1]), mode='bilinear', align_corners=True)
+                    w_map_curr=F.interpolate(w_map, (x.shape[-2],x.shape[-1]), mode='bilinear', align_corners=True)#TODO if i<(len(self.body_modules)-5) extend to future crop size rather than img size
                     m.ada.width=2**(i+2)*config.args.local_stats_width*min(self.zoom[0],self.zoom[1]) #important detail: local_stats_width controls how local stats are computed you may try from .1 to .8
                     s, t = self.pred(w_map_curr.permute((0, 2, 3, 1)))
                     if config.args.sine_maps:
@@ -558,10 +565,16 @@ class style_generator(nn.Module):
                     else:
                         fx, fy = 0, 0
                     x = m(x, w, fx * 2 ** (self.n - i - 1), fy * 2 ** (self.n - i - 1), w_map=w_map_curr, save_noise=self.save_noise,
-                      phase=offset * 2 ** -i)
+                      phase=offset * 2 ** -i,f0=f0)
                 else:
                     x = m(x, w, fx * 2 ** (self.n - i - 1), fy * 2 ** (self.n - i - 1), w_map=w_map, save_noise=self.save_noise,
-                      phase=offset * 2 ** -i) #phases are scaled in order for the sine waves to be aligned in the two consectutive leveks in which a frequency is used
+                      phase=offset * 2 ** -i,f0=f0) #phases are scaled in order for the sine waves to be aligned in the two consectutive leveks in which a frequency is used
+                
+                #if i==(len(self.body_modules)-5) and (x.shape[-2]>20*zoom[0] or x.shape[-1]>20*zoom[1]): #considered for larger depth n of the generator
+                #    if self.training:
+                #        x = transforms.RandomCrop((20*zoom[0],20*zoom[1]))(x)
+                #    else:
+                #        x = TF.center_crop(x, (20*zoom[0],20*zoom[1]))
             return x
 
         self.body = body_forward
@@ -569,9 +582,9 @@ class style_generator(nn.Module):
 
     def forward(self,w, w_map=None,zoom=(1,1)):
         self.zoom=zoom
-        self.pad=4 if zoom==(1,1) else 5
+        self.pad=4 if zoom==(1,1) else 6
 
-        x = self.body(self.input_tensor.repeat(w.shape[0], 1, 2**(8-self.n)*zoom[0] + self.pad, 2**(8-self.n)*zoom[1] + self.pad), w, w_map)
+        x = self.body(self.input_tensor.repeat(w.shape[0], 1,  max(int(2**(8-self.n)*zoom[0] + self.pad),7), max(int(2**(8-self.n)*zoom[1] + self.pad),7)), w, w_map,f0=100*self.f0,zoom=zoom)
 
         if w_map is not None:
             self.rgb.ada.width=2**(self.n+1)*config.args.local_stats_width*min(self.zoom[0],self.zoom[1])

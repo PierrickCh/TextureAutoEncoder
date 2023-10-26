@@ -20,14 +20,15 @@ import config
 import imageio
 from config import load_args
 topil=transforms.ToPILImage()
-
+import seaborn as sns
+ 
 
 if __name__ == '__main__':
     
 
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name',type=str, default='test',help='name of your experiment, as seen in the run folder')
+    parser.add_argument('--name',type=str, default='example',help='name of your experiment, as seen in the run folder')
     parser.add_argument('--text',type=str, default='yourtext')
     parser.add_argument('--n_gif',type=int, default=50,help='lenght of gifs animations')
     parser.add_argument('--bs',type=int, default=8,help='batch size for making interpolation gifs, reduce in case of memory issues')
@@ -52,7 +53,7 @@ if __name__ == '__main__':
     args=config.get_arguments()
     args=load_args(os.path.join(dir,'arguments.json'),args)
     config.args=args
-    torch.random.seed()
+    
 
 
     vgg = models.vgg19(pretrained=False).features.cuda()
@@ -64,6 +65,8 @@ if __name__ == '__main__':
         pretrained_dict = torch.load('../vgg.pth')
         for param, item in zip(vgg.parameters(), pretrained_dict.keys()):
             param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
+    
+    #vgg = models.vgg19(pretrained=True).features.cuda()
     vgg.requires_grad_(False)
     outputs = {}
     def save_output(name):
@@ -86,16 +89,189 @@ if __name__ == '__main__':
     G.eval()
     E.eval()
     z_to_w.eval()
+    print('f0', 100*G.f0.item())
 
+    if not os.path.exists(os.path.join(dir_exp,'noise_sampling')):
+        os.makedirs(os.path.join(dir_exp,'noise_sampling'))
+    if not os.path.exists(os.path.join(dir_exp,'interp')):
+        os.makedirs(os.path.join(dir_exp,'interp'))
+    if not os.path.exists(os.path.join(dir_exp,'expansion')):
+        os.makedirs(os.path.join(dir_exp,'expansion'))
 
-    
     with torch.no_grad():
+        '''
+        torch.manual_seed(42)
+        config.args.batch_size=32
+        loader,loader_test=get_loader()
+        loader.shuffle=False
+        print('smoothness')
 
-        
+        d=[]
+        for i, real in enumerate(tqdm(loader)):
+            if real.shape[0]!=32:
+                pass
+            real=real.cuda()
+            scale = Variable((.5+0.*torch.rand(config.args.batch_size) * (args.max_scale - args.min_scale) + args.min_scale).cuda(),
+                                    requires_grad=False)
+            theta = Variable((0.*torch.rand(config.args.batch_size) * (args.max_theta - args.min_theta) + args.min_theta).cuda(),
+                                requires_grad=False)
+            t_real_1=augment(real,scale/2,theta)
+            t_real_2=augment(real,scale*2,theta+3.14/2)
+            vgg(prep(t_real_1))  
+            out_vgg = [outputs[key] for key in layers] 
+            w_real_1=E(out_vgg)
+            vgg(prep(t_real_2))  
+            out_vgg = [outputs[key] for key in layers] 
+            w_real_2=E(out_vgg)
+            curr=G(w_real_1)
+            l=[]
+            for a in torch.linspace(1/50,1,50):
+                new=G(a*w_real_2+(1-a)*w_real_1)
+                l.append(((new-curr)**2).mean(-1).mean(-1).mean(-1)*50)
+                curr=new*1.
+            ll=torch.stack(l,dim=1)
+            print('max:',torch.max(ll,dim=1)[0])
+            print('mean:',torch.mean(ll,dim=1))
+            d.append(torch.max(ll,dim=1)[0]/torch.mean(ll,dim=1))
+        dd=torch.cat(d)
+        print('m',torch.mean(dd))
+        print('s',torch.std(dd))
+        '''
+   
+
+        torch.random.seed()
         config.args.batch_size=len(args_inference.text)+4
         loader,loader_test=get_loader()
+        loader.shuffle=True
+
+        print('zoom 4')
         it=iter(loader)
-        next(it)
+        real=next(it).cuda()
+       
+        scale = Variable((torch.rand(config.args.batch_size) * (args.max_scale - args.min_scale) + args.min_scale).cuda(),
+                                requires_grad=False)
+        theta = Variable((torch.rand(config.args.batch_size) * (args.max_theta - args.min_theta) + args.min_theta).cuda(),
+                            requires_grad=False)
+        real=augment(real,scale,theta)
+        real=real[:4]
+        vgg(prep(real))  
+        out_vgg = [outputs[key] for key in layers] 
+        w=E(out_vgg)
+        G.save_noise=False
+        rec=G(w)*.5+.5
+        zoom=G(w,zoom=(4,4))*.5+.5
+        for i in range(4):
+            save_image(real[i:i+1]*.5+.5,os.path.join(dir_exp,'expansion','GT_%d.png'%(i)))
+            save_image(rec[i:i+1],os.path.join(dir_exp,'expansion','rec_%d.png'%(i)))
+            save_image(zoom[i:i+1],os.path.join(dir_exp,'expansion','zoom_4_%d.png'%(i)))
+        del zoom, rec
+
+        
+
+        print('interp')
+        it=iter(loader)
+        real=next(it).cuda()
+       
+        scale = Variable((torch.rand(config.args.batch_size) * (args.max_scale - args.min_scale) + args.min_scale).cuda(),
+                                requires_grad=False)
+        theta = Variable((torch.rand(config.args.batch_size) * (args.max_theta - args.min_theta) + args.min_theta).cuda(),
+                            requires_grad=False)
+        real=augment(real,scale,theta)
+        real=real[:8]
+        vgg(prep(real))  
+        out_vgg = [outputs[key] for key in layers] 
+        w=E(out_vgg)
+        G.save_noise=False
+
+        w=w.T.view(args.nc_w,4,2)
+        w_path=F.interpolate(w,size=9,mode='linear',align_corners=True)
+        w_path=torch.cat((w_path[:,:,:1],w_path,w_path[:,:,-1:]),dim=-1)
+        w_path=w_path.permute((1,0,2)).reshape(4,args.nc_w,1,11)
+        interp_continuous=G(w_path[:,:,0,0],w_map=w_path,zoom=(1,5))
+        
+
+        w_single=F.interpolate(w,size=5,mode='linear',align_corners=True).permute((1,0,2)).reshape(4,args.nc_w,1,5).permute((0,2,3,1)).reshape(-1,args.nc_w)
+        rec=G(w_single)
+        rec=rec.reshape(4,5,3,rec.shape[-2],rec.shape[-1])*.5+.5
+        
+
+        
+        for i in range(4):
+            save_image(interp_continuous[i:i+1]*.5+.5,os.path.join(dir_exp,'interp','%d_continuous.png'%(i)))
+            save_image(real[2*i:2*i+1]*.5+.5,os.path.join(dir_exp,'interp','%d_GT0.png'%(i)))
+            save_image(real[2*i+1:2*i+2]*.5+.5,os.path.join(dir_exp,'interp','%d_GT1.png'%(i)))
+            grid=make_grid(rec[i],nrow=5,padding=0)
+            save_image(grid,os.path.join(dir_exp,'interp','%d_steps.png'%(i)))
+            
+
+
+
+
+
+        from sklearn.manifold import TSNE
+        import itertools
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        print('TSNE')
+        n_img_tsne=3
+        res=4
+        real=next(iter(loader))
+        real=real[0:n_img_tsne].cuda()
+        args.min_theta,args.max_theta=-3.14*.5,3.14*.5
+        scale = Variable((torch.linspace(0,1,10) * (config.args.max_scale - config.args.min_scale) + config.args.min_scale).cuda(),
+                                    requires_grad=False)
+        theta = Variable((torch.linspace(0,1,15) * (3.14-3.14/15) -3.14*.5).cuda(),
+                            requires_grad=False)
+        st=torch.tensor(list(itertools.product(scale,theta)))
+        fig, axs = plt.subplots(n_img_tsne,4,figsize=(4*res,res*n_img_tsne))
+        plt.rcParams['figure.figsize']=res,res
+        d=[]
+        for i in range(n_img_tsne):
+            t_real=augment(real[i:i+1].repeat(st.shape[0],1,1,1),st.cuda()[:,0],st.cuda()[:,1])
+            ws=[]
+            for b in range(1+(t_real.shape[0]-1)//20):
+                #out_vgg = vgg(prep(t_real[b*20:(b+1)*20]), ['r11', 'r21', 'r31', 'r41', 'r51'])
+                vgg(prep(t_real[b*20:(b+1)*20]))  
+                out_vgg = [outputs[key] for key in layers] 
+                ws.append(E(out_vgg))
+            ws=torch.cat(ws,dim=0)
+            rec_s,rec_t=G.pred(ws)
+            st,rec_s,rec_t=st.cpu(),rec_s.cpu(),rec_t.cpu()
+            data = np.array(ws.cpu())
+            #pca = PCA(n_components=4)
+            #pca.fit(data)
+            #print(pca.explained_variance_ratio_)
+            #pcs = torch.tensor([pca.components_[i] for i in range(2)]).cuda()
+                #proj = torch.mm(ws, pcs.T).cpu()
+            color=torch.tensor([[(st[i,0]-config.args.min_scale)/(config.args.max_scale-config.args.min_scale)*(.5+.5*torch.sin(2*st[i,1]-3.14/4)),
+                (st[i,0]-config.args.min_scale)/(config.args.max_scale-config.args.min_scale)*(.2+.1*torch.sin(2*st[i,1])),
+                (st[i,0]-config.args.min_scale)/(config.args.max_scale-config.args.min_scale)*(.5+.5*torch.cos(2*st[i,1]-3.14/4)),
+                (st[i,0]-config.args.min_scale)/(config.args.max_scale-config.args.min_scale)] for i in range(st.shape[0])])
+            tsne=TSNE(n_components=2,perplexity=30,n_iter=1000)#min(args_inference.n_scale,args_inference.n_theta)
+            proj=tsne.fit_transform(data)
+            axs[i,0].imshow(real[i].cpu().permute(1,2,0).numpy()*.5+.5)
+            axs[i,0].set_axis_off()
+            sns.scatterplot(st[:,0]*torch.cos(st[:,1]), st[:,0]*torch.sin(st[:,1]),ax=axs[i,1], linewidth=0,c=color).plot()
+            sns.scatterplot(proj[:,0], proj[:,1], linewidth=0,ax=axs[i,2],c=color).plot()
+            sns.scatterplot(rec_s*torch.cos(rec_t),rec_s*torch.sin(rec_t),ax=axs[i,3], linewidth=0,c=color).plot()
+            axs[i,1].set_aspect('equal')
+            axs[i,2].set_aspect('equal')
+            axs[i,3].set_aspect('equal')
+        fs=15
+        axs[0,0].set_title('Input image',fontsize=fs)
+        axs[0,1].set_title('Parameters of transformations applied\n to the image represented on a plane\n (color represents the angle of rotation \n and the transparency the scaling factor)\n\n\n',fontsize=fs)
+        axs[0,2].set_title('TSNE performed on the latent representations\n of all the transformed textures',fontsize=fs)
+        axs[0,3].set_title('Transformation parameters\n predicted by the generator\n\n\n',fontsize=fs)
+        plt.tight_layout()
+        plt.savefig(os.path.join(dir_exp,'tsne.png'),dpi=300)
+
+
+
+
+
+
+        it=iter(loader)
         real=next(it).cuda()
         real_same=real[:1].repeat(config.args.batch_size,1,1,1)
         scale = Variable((.7+torch.randn(config.args.batch_size)*.0 ).cuda(),
@@ -109,15 +285,18 @@ if __name__ == '__main__':
 
         
         print('different samplings')
-        if not os.path.exists(os.path.join(dir_exp,'noise_sampling')):
-            os.makedirs(os.path.join(dir_exp,'noise_sampling'))
-        for i in range(8):
+        G.save_noise=False
+
+        for i in range(2):
             rec=G(w_real[i:i+1].repeat(4,1))
             #grid=make_grid(rec*.5+.5,nrow=2,padding=5,pad_value=1)
+            l=[]
+            d=rec.shape[-1]//4
             for j,img in enumerate(rec):
                 save_image(img.unsqueeze(0)*.5+.5,os.path.join(dir_exp,'noise_sampling','noise_sampling_img%d_sample%d.png'%(i,j)))
+                l.append(img[...,j*d:(j+1)*d])
             save_image(real[i:i+1]*.5+.5,os.path.join(dir_exp,'noise_sampling','noise_sampling_GT%d.png'%(i)))
-
+            save_image(torch.cat(l,dim=-1).unsqueeze(0)*.5+.5,os.path.join(dir_exp,'noise_sampling','noise_sampling_amalgam_%d.png'%(i)))
         real_same=augment(real_same,scale,theta)
         vgg(prep(real_same))
         out_vgg = [outputs[key] for key in layers] 
@@ -141,21 +320,36 @@ if __name__ == '__main__':
         conv.weight.data = kernel
         conv.weight.requires_grad = False
         conv.cuda()
-        for w_curr,name in zip([w_real,w_same],['','_same_image']):
-            print('brush%s %s'%(name,args_inference.text))
-            w_map_back=w_curr[:4].T.unsqueeze(1).view(1,args.nc_w,2,2)
-            w_map=F.interpolate(w_map_back, (128*(len(args_inference.text)//4),128*4), mode='bilinear', align_corners=True)
-            for i,s in enumerate(args_inference.text.upper()):
-                a=transforms.ToTensor()(Image.open('./letters/%s.png'%s)).unsqueeze(0).cuda()
-                ca=conv(a)
-                mask=torch.minimum(torch.tensor(1.).cuda(),ca/ca.max()*1.)
-                #save_image(mask,os.path.join(dir_exp,'mask.png'))
-                w_brush=w_curr[4+i].unsqueeze(0)
-                w_map[:,:,128*(i//4):128*((i//4)+1),128*(i%4):128*((i%4)+1)]=w_brush.unsqueeze(-1).unsqueeze(-1)*mask+w_map[:,:,128*(i//4):128*((i//4)+1),128*(i%4):128*((i%4)+1)]*(1-mask)
 
-            brush=G(w_map[:,:,0,0],w_map=w_map,zoom=((len(args_inference.text)//4)*2,8))*.5+.5   #*2,8 for zommed
-            save_image(brush,os.path.join(dir_exp,'brush%s.png'%(name)))
-        
+        for z in range(1):
+            real=next(it).cuda()
+            real_same=real[:1].repeat(config.args.batch_size,1,1,1)
+            scale = Variable((.7+torch.randn(config.args.batch_size)*.1).cuda(),
+                                    requires_grad=False)
+            theta = Variable((0.1*torch.randn(config.args.batch_size)).cuda(),
+                                requires_grad=False)
+            real=augment(real,scale,theta)
+            vgg(prep(real))
+            out_vgg = [outputs[key] for key in layers] 
+            w_real=E(out_vgg)
+            
+
+            for w_curr,name in zip([w_real,w_same],['','_same_image']):
+                if name == '':
+                    print('brush%s %s'%(name,args_inference.text))
+                    w_map_back=w_curr[:4].T.unsqueeze(1).view(1,args.nc_w,2,2)
+                    w_map=F.interpolate(w_map_back, (128*(len(args_inference.text)//4),128*4), mode='bilinear', align_corners=True)
+                    for i,s in enumerate(args_inference.text.upper()):
+                        a=transforms.ToTensor()(Image.open('./letters/%s.png'%s)).unsqueeze(0).cuda()
+                        ca=conv(a)
+                        mask=torch.minimum(torch.tensor(1.).cuda(),ca/ca.max()*1.2)
+                        #save_image(mask,os.path.join(dir_exp,'mask.png'))
+                        w_brush=w_curr[4+i].unsqueeze(0)
+                        w_map[:,:,128*(i//4):128*((i//4)+1),128*(i%4):128*((i%4)+1)]=w_brush.unsqueeze(-1).unsqueeze(-1)*mask+w_map[:,:,128*(i//4):128*((i//4)+1),128*(i%4):128*((i%4)+1)]*(1-mask)
+
+                    brush=G(w_map[:,:,0,0],w_map=w_map,zoom=((len(args_inference.text)//4)*2,8))*.5+.5   #*2,8 for zommed
+                    save_image(brush,os.path.join(dir_exp,'brush%s_%d.png'%(name,z%10)))
+            
         
 
         config.args.batch_size=16
@@ -177,7 +371,7 @@ if __name__ == '__main__':
             save_image(interp,os.path.join(dir_exp,'interpolation_zoom_%d.png'%i))
 
         print('augmentation and reconstruction of the same image')
-        next(it)
+        it=iter(loader)
         batch=next(it).cuda()
         for i in tqdm(range(4)):
             real=batch[i:i+1].repeat(5,1,1,1)
@@ -198,7 +392,7 @@ if __name__ == '__main__':
     
 
         print('texture palette')
-
+        it=iter(loader)
         batch=next(it).cuda()
         corner_list=[]
         w_real_list=[]
@@ -247,6 +441,7 @@ if __name__ == '__main__':
 
             
         print('show off')
+        it=iter(loader)
         real=next(it).cuda()
         scale = Variable((torch.rand(config.args.batch_size) * (args.max_scale - args.min_scale) + args.min_scale).cuda(),
                                 requires_grad=False)
@@ -285,6 +480,13 @@ if __name__ == '__main__':
 
 
 
+        
+        
+
+
+            
+
+
 
 
         print('examples')
@@ -292,17 +494,12 @@ if __name__ == '__main__':
         grid=make_grid(G(z_to_w(z)),nrow=4)*.5+.5
         save_image(grid,os.path.join(dir_exp,'examples.png'))
 
-        print('zoom 4')
+        print('zoom 4 sample')
         z = Variable(torch.randn(1,args.nc_z)).cuda()
         w=z_to_w(z)
         zoom=G(w,zoom=(4,4))*.5+.5
         save_image(zoom,os.path.join(dir_exp,'zoom_4.png'))
         
-
-        
-
-
-
 
        
 
@@ -353,6 +550,7 @@ if __name__ == '__main__':
         imageio.mimsave(os.path.join(dir_exp,'w_walk.gif'), images,duration=.1)
 
         print('z_walk between 4 random noise samples in Z space')
+        z = Variable(torch.randn(4,args.nc_z)).cuda()
         z = z.T.unsqueeze(1)
         z_path=F.interpolate(z,size=args_inference.n_gif+1,mode='linear',align_corners=True)
         z_path=z_path[...,:-1]

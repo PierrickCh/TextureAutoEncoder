@@ -22,8 +22,7 @@ if __name__ == '__main__':
     
 
     args=config.get_arguments()
-    loader,loader_test = get_loader()
-    config.create_dir()
+    config.create_dir(args)
     config.save_args()
     torch.manual_seed(config.args.seed)
     print(config.args)
@@ -41,6 +40,9 @@ if __name__ == '__main__':
         pretrained_dict = torch.load('../vgg.pth')
         for param, item in zip(vgg.parameters(), pretrained_dict.keys()):
             param.data = pretrained_dict[item].type(torch.FloatTensor).cuda()
+
+    #vgg = models.vgg19(pretrained=True).features.cuda()
+
     vgg.requires_grad_(False)
     outputs = {}
     def save_output(name):
@@ -60,17 +62,34 @@ if __name__ == '__main__':
     WD=W_Discriminator(args.nc_w).cuda()
     classes=torch.cat((torch.ones(args.batch_size,1),-torch.ones(args.batch_size,1)),dim=0).cuda() #for the discriminator
 
+    if config.args.load is not None:
+        try:
+            G.load_state_dict(torch.load(os.path.join(config.args.dir,'models','G')),strict=False)
+            E.load_state_dict(torch.load(os.path.join(config.args.dir,'models','E')),strict=False)
+            z_to_w.load_state_dict(torch.load(os.path.join(config.args.dir,'models','z_to_w')),strict=False)
+            
+        except:
+            pass
+    n_it=config.args.it
+
+
+
+
     # Optimizers
     optimizer = optim.Adam(list(G.parameters()) + list(E.parameters()) +list(z_to_w.parameters()), lr=args.lr, betas=(args.beta1, 0.999),weight_decay=0)
     optimizer_WD = optim.Adam(WD.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
 
     # Constant variables for consistent ploting
+    loader,loader_test = get_loader(shuffle=False)
+    
     z_plot = Variable(torch.rand(args.batch_size, args.nc_z).cuda())
     scale_plot = Variable((torch.linspace(0, 1, 2 * args.batch_size) * (args.max_scale - args.min_scale) + args.min_scale).cuda(),requires_grad=False)
     theta_plot = Variable((torch.linspace(0, 1, 2 * args.batch_size) * (args.max_theta - args.min_theta) + args.min_theta).cuda(),requires_grad=False)
-    real_plot=Variable(torch.cat((next(iter(loader)), next(iter(loader))), dim=0).cuda(), requires_grad=False)
+    it = iter(loader)
+    real_plot=Variable(torch.cat((next(it), next(it)), dim=0).cuda(), requires_grad=False)
     t_real_plot=augment(real_plot,scale_plot,theta_plot)
-    test_plot=Variable(torch.cat((next(iter(loader_test)), next(iter(loader_test))), dim=0).cuda(), requires_grad=False)
+    it = iter(loader_test)
+    test_plot=Variable(torch.cat((next(it), next(it)), dim=0).cuda(), requires_grad=False)
     t_test_plot=augment(test_plot,scale_plot,theta_plot)
     with torch.no_grad():
         vgg(prep(t_real_plot))
@@ -78,12 +97,13 @@ if __name__ == '__main__':
         vgg(prep(t_test_plot))
         out_vgg_test_plot = [outputs[key] for key in layers] 
 
+    loader,loader_test = get_loader(shuffle=True)
 
 
     print('G has %d parameters, E has %d parameters, T has %d parameters'%(get_n_params(G),get_n_params(E),get_n_params(z_to_w)))
     print('start training...')
     hist_scale, hist_theta = [], []
-    n_it = 0
+    
     for epoch in range(args.n_epoch):
         for step, real in enumerate(loader):
             real = Variable(real.cuda(), requires_grad=False)
@@ -103,9 +123,7 @@ if __name__ == '__main__':
                 style_targets = [GramMatrix()(outputs[key]) for key in layers] 
 
                 vgg(prep(t_real_same))
-                out_vgg_real_same = [outputs[key] for key in layers] 
-                
-
+                out_vgg_real_same = [outputs[key] for key in layers]
 
             w_same = E(out_vgg_real_same) # latent codes for different augmentations of the same image
 
@@ -242,6 +260,8 @@ if __name__ == '__main__':
         if (epoch % args.print_every) == 0:
             G.eval()
             E.eval()
+            config.args.it=n_it
+            config.save_args()
             torch.save(G.state_dict(), os.path.join(args.dir,'models','G'))
             torch.save(E.state_dict(), os.path.join(args.dir,'models','E'))
             torch.save(z_to_w.state_dict(), os.path.join(args.dir,'models','z_to_w'))
@@ -311,5 +331,8 @@ if __name__ == '__main__':
     torch.save(G.state_dict(), os.path.join(args.dir,'models','G'))
     torch.save(E.state_dict(), os.path.join(args.dir,'models','E'))
     torch.save(z_to_w.state_dict(), os.path.join(args.dir,'models','z_to_w'))
+    config.args.it=n_it
+    config.save_args()
     os.system('python inference.py --name %s' %(args.name))
+    writer.flush()
     writer.close()

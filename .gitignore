@@ -1,6 +1,14 @@
-runs/
+runs/*
+comp/*
+swd.py
+click.ipynb
+code/metrics.py
+code/inference_comp.py
+code/edition.py
+code/click.py
 **/events*
 **/*.pth
 **/*.sh
 !get_vgg_weights.sh
 !get_pretrained_model.sh
+!runs/example/
