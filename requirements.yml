@@ -13,3 +13,5 @@ dependencies:
   - numpy
   - matplotlib
   - imageio
+  - seaborn
+  - scikit-learn

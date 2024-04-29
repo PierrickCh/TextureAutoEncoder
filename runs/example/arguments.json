@@ -27,7 +27,7 @@
   "min_theta": 0,
   "max_theta": 6.28,
   "color_augmentation": false,
-  "dataset_folder": "../../../data/MacroTextures500/train",
+  "dataset_folder": "../../data/MacroTextures500/train",
   "texture_loss": "gatys",
   "print_every": 100,
   "it": 1827058,

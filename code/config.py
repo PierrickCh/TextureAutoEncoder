@@ -52,7 +52,7 @@ def get_arguments():
     parser.add_argument('--color_augmentation', type=str2bool, default=False)
 
 
-    parser.add_argument('--dataset_folder', type=str, default='../../../data/MacroTextures500/train',help='path to all your data, train and val are done randomly')
+    parser.add_argument('--dataset_folder', type=str, default='../../data/MacroTextures500/train',help='path to all your data, train and val are done randomly')
     parser.add_argument('--texture_loss', type=str, default='gatys')
     parser.add_argument('--print_every', type=int, default=100)
     
