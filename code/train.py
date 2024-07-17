@@ -116,7 +116,7 @@ if __name__ == '__main__':
                 t_real=augment(real,scale,theta) # t_real is augmented with random rotation and scaling.
 
                 real_same = real[:1].repeat(real.shape[0], 1, 1, 1)
-                t_real_same=augment(real_same,scale,theta) #t_real is the SAME image augmented with random rotation and scaling.
+                t_real_same=augment(real_same,scale,theta) #t_real_same is the SAME image augmented with random rotation and scaling.
 
                 vgg(prep(t_real))
                 out_vgg_real = [outputs[key] for key in layers] 

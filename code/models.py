@@ -415,6 +415,7 @@ class StyleBlock(nn.Module):
             x += n1 *self.noise_modulation1 
             x = self.ada(x, mu, sigma) 
         else:
+            #w_map = F.interpolate(w_map, scale_factor=2, mode='bilinear', align_corners=False)
             dh,dw=x.shape[2]-w_map.shape[2],x.shape[3]-w_map.shape[3]
             w_map=F.pad(w_map,(dw//2,dw-dw//2,dh//2,dh-dh//2),mode='replicate') #w_map is a small map of differnent textures style in different locations.
                                                                                 # It needs to be smoothly upsampled to the size of the current feature map
@@ -529,8 +530,12 @@ class style_generator(nn.Module):
         for i in range(self.n): # main body: cascade of StyleBlock modules 
             l.append(StyleBlock(min(nc_max, 2 ** (5 + self.n - i)), min(nc_max, 2 ** (5 + self.n - i - 1)), nc_w, n_freq=n_freq))
         self.body_modules = nn.ModuleList(l)
-
         def body_forward(x, w, w_map=None,f0=self.f0,zoom=(1,1)):
+            
+            sizes_list=[(256*zoom[0],256*zoom[1])]
+            for _ in range(self.n):
+                sizes_list = [(max(7*zoom[0],(sizes_list[0][0])//2+6),max(7*zoom[1],(sizes_list[0][1])//2+6))] + sizes_list
+
             if w_map is None:
                 s, t = self.pred(w) # infer scale and rotation
                 mod = 2 ** (-self.r * self.grad_boost) # get magnitude of each frequency
@@ -553,8 +558,8 @@ class style_generator(nn.Module):
 
             for i, m in enumerate(self.body_modules):
                 if w_map is not None:
-                    #!!!!! w_map_curr=F.interpolate(w_map, (2**(i+2)*self.zoom[0],2**(i+2)*self.zoom[1]), mode='bilinear', align_corners=True)
-                    w_map_curr=F.interpolate(w_map, (x.shape[-2],x.shape[-1]), mode='bilinear', align_corners=True)#TODO if i<(len(self.body_modules)-5) extend to future crop size rather than img size
+                    w_map_curr=F.interpolate(w_map, (2**(i+2)*self.zoom[0],2**(i+2)*self.zoom[1]), mode='bilinear', align_corners=True)
+                    #w_map_curr=F.interpolate(w_map, (x.shape[-2],x.shape[-1]), mode='bilinear', align_corners=True)#TODO if i<(len(self.body_modules)-5) extend to future crop size rather than img size
                     m.ada.width=2**(i+2)*config.args.local_stats_width*min(self.zoom[0],self.zoom[1]) #important detail: local_stats_width controls how local stats are computed you may try from .1 to .8
                     s, t = self.pred(w_map_curr.permute((0, 2, 3, 1)))
                     if config.args.sine_maps:
@@ -570,6 +575,8 @@ class style_generator(nn.Module):
                     x = m(x, w, fx * 2 ** (self.n - i - 1), fy * 2 ** (self.n - i - 1), w_map=w_map, save_noise=self.save_noise,
                       phase=offset * 2 ** -i,f0=f0) #phases are scaled in order for the sine waves to be aligned in the two consectutive leveks in which a frequency is used
                 
+                if not self.training:
+                    x = TF.center_crop(x, sizes_list[i+1])
                 #if i==(len(self.body_modules)-5) and (x.shape[-2]>20*zoom[0] or x.shape[-1]>20*zoom[1]): #considered for larger depth n of the generator
                 #    if self.training:
                 #        x = transforms.RandomCrop((20*zoom[0],20*zoom[1]))(x)
